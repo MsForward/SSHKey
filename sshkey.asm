@@ -13,8 +13,21 @@ start:
     call parseArgs
     call exit
     
-    getArg proc
+    getArgLen proc
         
+    
+    getArg proc
+        xor bx, bx
+        
+        mov bx, offset argPtr
+        add bx, dx ; stores index of argument
+        mov bl, byte ptr ds:[bx]
+        ret
+    endp
+    
+    getArgNum proc
+        mov dl, byte ptr argNum
+        ret
     
     parseArgs2 proc
         push ax
