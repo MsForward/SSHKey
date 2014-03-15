@@ -11,17 +11,73 @@ code segment
 start:
     call init
     call parseArgs
+    call printArgs
     call exit
     
-    getArgLen proc
+    printArgs proc
+        push ax
+        push bx
+        push cx
+        push dx
         
+        xor cx, cx
+        printLoop:
+            call getArg
+            mov ah, 9h
+            int 21h
+            call crlf
+            
+            inc cx
+            cmp cl, argNum
+            jl printLoop
+        
+        ret
+    endp
+    
+    crlf proc
+        push ax
+        push dx
+
+        mov dl, 0Ah
+        mov ah, 2h
+        int 21h
+        mov dl, 0Dh
+        int 21h 
+        
+        pop dx
+        pop ax
+        ret
+    endp
+    
+    getArgLen proc
+        push ax
+        push bx
+        
+        ; dx stores argument index
+        call getArg
+        mov ax, 1
+        
+        getChar:
+            inc bx
+            cmp ds:[bx], 24h
+            je endGetArgLen
+            
+            inc ax
+            jmp getChar
+        
+        endGetArgLen:
+            mov dx, ax
+        
+        pop bx
+        pop ax
+        ret
+    endp
     
     getArg proc
         xor bx, bx
         
-        mov bx, offset argPtr
-        add bx, dx ; stores index of argument
-        mov bl, byte ptr ds:[bx]
+        mov bx, dx ; stores index of argument
+        mov bl, [argPtr + bx]
         ret
     endp
     
@@ -177,22 +233,23 @@ start:
         cmp bh, 0
         jne contSaveChar
         
-        push bx
-        xor bh, bh
-        add bx, offset argPtr        
-        mov ds:[bx], di
-        pop bx
-        ; mark that an argument is being read
-        mov bh, 1    
+        call getAddress  
             
         contSaveChar: 
             ; increment index pointers
             inc si
-            inc di
-        
-        pop dx       
+            inc di       
         ret
-    endp    
+    endp
+    
+    getAddress proc
+        ; bl contains number of arguments
+        xor bh, bh        
+        mov word ptr ds:[argPtr + bx], di
+        ; mark that an argument is being read
+        mov bh, 1
+        ret
+    endp
         
     init proc
         ; save data segment
