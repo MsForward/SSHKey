@@ -16,7 +16,6 @@ start:
     
     printArgs proc
         push ax
-        push bx
         push cx
         push dx
         
@@ -27,10 +26,13 @@ start:
             int 21h
             call crlf
             
-            inc cx
+            inc cl
             cmp cl, argNum
             jl printLoop
         
+        pop dx
+        pop cx
+        pop ax
         ret
     endp
     
@@ -53,20 +55,21 @@ start:
         push ax
         push bx
         
-        ; dx stores argument index
+        xor bx, bx
+        ; cl stores argument index
         call getArg
-        mov ax, 1
-        
+        mov al, 1
+        mov bl, cl
         getChar:
             inc bx
             cmp ds:[bx], 24h
             je endGetArgLen
             
-            inc ax
+            inc al
             jmp getChar
         
         endGetArgLen:
-            mov dx, ax
+            mov dl, al
         
         pop bx
         pop ax
@@ -74,10 +77,13 @@ start:
     endp
     
     getArg proc
+        push bx
         xor bx, bx
         
-        mov bx, dx ; stores index of argument
-        mov bl, [argPtr + bx]
+        mov bl, cl ; stores index of argument
+        mov dl, [argPtr + bx] 
+        
+        pop bx
         ret
     endp
     
