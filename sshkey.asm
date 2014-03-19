@@ -1,7 +1,7 @@
 data segment
-    args    db 255 dup(?)
-    argPtr  db 128 dup(0)
-    argNum  db 0    
+    args    db 255 dup(?)   ; stores command line arguments
+    argPtr  db 128 dup(0)   ; array of argument offsets
+    argNum  db 0            ; stores number of arguments    
 data ends
 
 assume ds:data, cs:code
@@ -295,7 +295,7 @@ start:
         ret
     endp
     
-    exit proc
+    exit proc ; returns control to system
         mov ax, 4C00h
         int 21h
     endp
