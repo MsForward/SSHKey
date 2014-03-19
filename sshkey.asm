@@ -22,6 +22,11 @@ start:
         xor cx, cx
         ; prints one argument
         printLoop:
+            ; check for next argument
+            cmp cl, argNum
+            ; if no arguments left return
+            je endPrintLoop
+            
             ; get argument address
             call getArg
             ; print argument to console
@@ -31,9 +36,9 @@ start:
             call crlf
             
             inc cl
-            ; check if there are arguments left
-            cmp cl, argNum
-            jl printLoop
+            jmp printLoop
+            
+        endPrintLoop:
         
         pop dx
         pop cx
@@ -60,21 +65,28 @@ start:
     
     getArgLen proc ; returns length of argument with index in cl
         push ax
-        push bx
+        push bx   
         
+        ; clear address storage
         xor bx, bx
         ; cl stores argument index
         call getArg
-        mov al, c
-        mov bl, cl
+        ; save first offset
+        mov al, 1
+        mov bl, dl
         getChar:
+            ; go to next character 
             inc bx
-            cmp ds:[bx], 24h
-            je endGetArgLen
+            ; check for end of argument
+            cmp ds:[bx], 24h ; ASCII code for '$'
             
+            ; return if encountered end of string
+            je endGetArgLen
+            ; else increment character counter and read next
             inc al
             jmp getChar
         
+        ; return argument length in dl
         endGetArgLen:
             mov dl, al
         
