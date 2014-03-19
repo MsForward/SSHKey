@@ -14,6 +14,119 @@ start:
     call printArgs
     call exit
     
+    parseArgs proc
+        push ax
+        push bx
+        push cx       
+        
+        ; clear argument counter
+        xor bl, bl
+        
+        mov si, 82h ; command line arguments offset
+        mov di, offset args
+        mov cl, byte ptr es:[80h] ; number of characters entered
+        
+        call removeWhitespace
+        ; check for empty command line
+        cmp cx, 0
+        je endParseArgs
+        
+        readLoop:
+            call readArg
+            call removeWhitespace
+            
+            cmp cx, 0
+            jg readLoop
+        
+        ; save number of arguments
+        endParseArgs:
+        mov argNum, bl
+        
+        pop cx
+        pop bx
+        pop ax    
+        ret
+    endp
+    
+    removeWhitespace proc
+        rwLoop:
+            ; read next character
+            mov al, byte ptr es:[si]
+            ; check if whitespace
+            cmp al, 20h
+            jg endRemoveWhitespace
+
+            inc si
+            dec cx
+            cmp cx, 0
+            jg rwLoop
+            
+        endRemoveWhitespace:
+            ret
+    endp
+    
+    readArg proc
+        
+        call getAddress
+        raLoop:
+            ; read next character
+            mov al, byte ptr es:[si]
+            ; check if whitespace
+            cmp al, 20h
+            jle endReadArg
+            
+            cmp al, '$'
+            je illegalChar
+            ; save character
+            mov ds:[di], al
+
+            inc di
+            
+        illegalChar:    
+            inc si
+            
+            dec cx
+            cmp cx, 0
+            jg raLoop
+            
+        endReadArg:
+            ; end string with $
+            mov ds:[di], '$'
+            inc di
+            ; increment argument counter
+            inc bl
+            
+            ret
+    endp        
+    
+    getAddress proc
+        push bx
+        
+        ; bl contains number of arguments
+        xor bh, bh        
+        mov word ptr ds:[argPtr + bx], di
+        
+        pop bx
+        ret
+    endp
+    
+    getArg proc ; return address of argument with index of cl
+        push bx
+        xor bx, bx
+        
+        mov bl, cl ; stores index of argument
+        ; return address in dl
+        mov dl, [argPtr + bx] 
+        
+        pop bx
+        ret
+    endp
+    
+    getArgNum proc ; return number of arguments in dl
+        mov al, argNum
+        ret
+    endp
+    
     printArgs proc ; prints command line arguments
         push ax
         push cx
@@ -95,111 +208,6 @@ start:
         ret
     endp
     
-    getArg proc ; return address of argument with index of cl
-        push bx
-        xor bx, bx
-        
-        mov bl, cl ; stores index of argument
-        ; return address in dl
-        mov dl, [argPtr + bx] 
-        
-        pop bx
-        ret
-    endp
-    
-    getArgNum proc ; return number of arguments in dl
-        mov dl, byte ptr argNum
-        ret
-    
-    parseArgs proc
-        push ax
-        push bx
-        push cx
-        
-        ; clear argument counter
-        xor bl, bl
-        
-        mov si, 82h ; command line arguments offset
-        mov di, offset args
-        mov cl, byte ptr es:[80h] ; number of characters entered
-        
-        call removeWhitespace
-        ; check for empty command line
-        cmp cx, 0
-        je endParseArgs
-        
-        readLoop:
-            call readArg
-            call removeWhitespace
-            
-            cmp cx, 0
-            jg readLoop
-        
-        ; save number of arguments
-        endParseArgs:
-        mov argNum, bl
-        
-        pop cx
-        pop bx
-        pop ax    
-        ret
-    endp
-    
-    removeWhitespace proc
-        rwLoop:
-            ; read next character
-            mov al, byte ptr es:[si]
-            ; check if whitespace
-            cmp al, 20h
-            jg endRemoveWhitespace
-
-            inc si
-            dec cx
-            cmp cx, 0
-            jg rwLoop
-            
-        endRemoveWhitespace:
-            ret
-    endp
-    
-    readArg proc
-        raLoop:
-            ; read next character
-            mov al, byte ptr es:[si]
-            ; check if whitespace
-            cmp al, 20h
-            jle endReadArg
-            
-            cmp al, '$'
-            je illegalChar
-            ; save character
-            mov ds:[di], al
-
-            inc di
-            inc si
-            
-            dec cx
-            cmp cx, 0
-            jg raLoop
-            
-        endReadArg:
-            ; end string with $
-            mov ds:[di], '$'
-            inc di
-            ; increment argument counter
-            inc bl
-            ret
-    endp        
-    
-    getAddress proc
-        ; bl contains number of arguments
-        xor bh, bh        
-        mov word ptr ds:[argPtr + bx], di
-        ; mark that an argument is being read
-        mov bh, 1
-        ret
-    endp
-        
     init proc
         ; save data segment
         mov ax, seg args

@@ -14,7 +14,7 @@ start:
     call printArgs
     call exit
     
-    printArgs proc ; print command line arguments
+    printArgs proc ; prints command line arguments
         push ax
         push cx
         push dx
@@ -110,88 +110,7 @@ start:
     getArgNum proc ; return number of arguments in dl
         mov dl, byte ptr argNum
         ret
-    
-    parseArgs2 proc
-        push ax
-        push bx
-        push cx
-        
-        ; clear argument counter
-        xor bl, bl
-        
-        mov si, 82h ; command line arguments offset
-        mov di, offset args
-        mov cl, byte ptr es:[80h] ; number of characters entered
-        
-        call removeWhitespace
-        ; check for empty command line
-        cmp cx, 0
-        je endParseArgs2
-        
-        readLoop:
-            call readArg
-            call removeWhitespace
-            
-            dec cx
-            cmp cx, 0
-            jg readLoop
-        
-        ; save number of arguments
-        endParseArgs2:
-        mov argNum, bl
-        
-        pop cx
-        pop bx
-        pop ax    
-        ret
-    endp
-    
-    removeWhitespace proc
-        rwLoop:
-            ; read next character
-            mov al, byte ptr es:[si]
-            ; check if whitespace
-            cmp al, 20h
-            jg endRemoveWhitespace
-
-            inc si
-            dec cx
-            cmp cx, 0
-            jg rwLoop
-            
-        endRemoveWhitespace:
-            ret
-    endp
-    
-    readArg proc
-        raLoop:
-            ; read next character
-            mov al, byte ptr es:[si]
-            ; check if whitespace
-            cmp al, 20h
-            jle endReadArg
-            
-            cmp al, '$'
-            je illegalChar
-            ; save character
-            mov ds:[di], al
-            
-        illegalChar:
-            inc di
-            inc si
-            
-            dec cx
-            cmp cx, 0
-            jg raLoop
-            
-        endReadArg:
-            ; end string with $
-            mov ds:[di], '$'
-            inc di
-            ; increment argument counter
-            inc bl
-            ret
-    endp        
+    endp   
             
     parseArgs proc
         push ax
@@ -199,6 +118,7 @@ start:
         push cx
         
         xor bx, bx
+        xor cx, cx
          
         mov si, 82h ; command line arguments offset
         mov di, offset args
@@ -258,6 +178,9 @@ start:
     endp
     
     saveChar proc
+        cmp al, '$'
+        je illegalChar
+        
         mov ds:[di], al
         ; check if beginning of argument
         cmp bh, 0
@@ -267,8 +190,10 @@ start:
             
         contSaveChar: 
             ; increment index pointers
-            inc si
-            inc di       
+            inc di
+            
+        illegalChar:
+            inc si           
         ret
     endp
     
