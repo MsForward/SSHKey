@@ -14,19 +14,24 @@ start:
     call printArgs
     call exit
     
-    printArgs proc
+    printArgs proc ; print command line arguments
         push ax
         push cx
         push dx
         
         xor cx, cx
+        ; prints one argument
         printLoop:
+            ; get argument address
             call getArg
+            ; print argument to console
             mov ah, 9h
             int 21h
+            ; print line break
             call crlf
             
             inc cl
+            ; check if there are arguments left
             cmp cl, argNum
             jl printLoop
         
@@ -36,13 +41,15 @@ start:
         ret
     endp
     
-    crlf proc
+    crlf proc ; prints line break 
         push ax
         push dx
-
+        
+        ; prints new line
         mov dl, 0Ah
         mov ah, 2h
         int 21h
+        ; prints carriage return
         mov dl, 0Dh
         int 21h 
         
@@ -51,14 +58,14 @@ start:
         ret
     endp
     
-    getArgLen proc
+    getArgLen proc ; returns length of argument with index in cl
         push ax
         push bx
         
         xor bx, bx
         ; cl stores argument index
         call getArg
-        mov al, 1
+        mov al, c
         mov bl, cl
         getChar:
             inc bx
@@ -76,18 +83,19 @@ start:
         ret
     endp
     
-    getArg proc
+    getArg proc ; return address of argument with index of cl
         push bx
         xor bx, bx
         
         mov bl, cl ; stores index of argument
+        ; return address in dl
         mov dl, [argPtr + bx] 
         
         pop bx
         ret
     endp
     
-    getArgNum proc
+    getArgNum proc ; return number of arguments in dl
         mov dl, byte ptr argNum
         ret
     
