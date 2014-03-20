@@ -26,9 +26,13 @@ start:
         ; check if command line should be truncated 
         mov ax, ds
         mov bx, es
-        add bx, 82h
+        ; calculate offset between data segment argument segment
         sub ax, bx
-        cmp al, cl
+        shl ax, 4d
+        ; add offset of arguments
+        sub ax, 82h
+        ; compare with number of characters entered
+        cmp cl, al
         jle validLength
         
         ; read only characters that are available
