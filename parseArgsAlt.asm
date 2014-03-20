@@ -19,12 +19,25 @@ start:
         push bx
         push cx       
         
-        ; clear argument counter
-        xor bl, bl
-        
         mov si, 82h ; command line arguments offset
         mov di, offset args
         mov cl, byte ptr es:[80h] ; number of characters entered
+        
+        ; check if command line should be truncated 
+        mov ax, ds
+        mov bx, es
+        add bx, 82h
+        sub ax, bx
+        cmp al, cl
+        jle validLength
+        
+        ; read only characters that are available
+        mov cl, al
+        
+        validLength:
+        
+        ; clear argument counter
+        xor bx, bx
         
         call removeWhitespace
         ; check for empty command line
