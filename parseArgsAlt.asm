@@ -1,3 +1,15 @@
+; Methods:
+;   parseArgs
+;   printArgs
+;   getArg
+;       entry: DL = argument index
+;       return: AL = argument offset
+;   getArgLen
+;       entry: DL = argument index
+;       return: AL = argument length
+;   getArgNum
+;       return: AL = number of arguments
+
 data segment
 ; Commang line arguments
     args            db 255 dup(?)   ; stores command line arguments
@@ -7,8 +19,8 @@ data segment
     keyPtr          db 0            ; offset of SSH key 
     
 ; Error messages    
-    tooManyArgsErr  db "Too many arguments! Usage: version key","$"
-    wrongArgLenErr  db "Wrong argument length! Usage: [0|1] 16-byte key","$"
+    argNumErr       db "Too many arguments! Usage: version key","$"
+    argLenErr       db "Wrong arguments! Usage: 0|1 16-byte key","$"
 data ends
 
 assume ds:data, cs:code
@@ -23,24 +35,56 @@ start:
     
     checkArgs proc
         push ax
+        push bx
         push cx
         push dx
         
-        cmp argNum, 2h
-        jg tooManyArgs
+        xor bx, bx
+        
+        cmp argNum, 2
+        jne wrongArgNum
         
         mov cl, 0
         call getArgLen
         cmp dl, 1
         jne wrongArgLen
         
-        tooManyArgs:
+        call getArg
+        mov bl, dl
+        mov al, ds:[bx]
+        sub al, 30h
+        cmp al, 0
+        je smth
+        cmp al, 1
+        jne wrongVersion
+        
+        smth:
+            mov runV, al
+        
+        mov cl, 1
+        call getArgLen
+        cmp dl, 20h
+        jne wrongArgLen
+        
+        
+        wrongArgNum:
             mov ah, 9h
-            mov dx, offset tooManyArgsErr
+            mov dx, offset argNumErr
             int 21h
+            jmp endCheckArgs
             
         wrongArgLen:
+            mov ah, 9h
+            mov dx, offset argLenErr
+            int 21h
+            jmp endCheckArgs
         
+        wrongVersion:
+            mov ah, 9h
+            mov dx, offset versionErr
+            int 21h
+        
+        endCheckArgs:
         pop dx
         pop cx
         pop ax
@@ -117,7 +161,7 @@ start:
     
     readArg proc
         
-        call getAddress
+        call putAddress
         raLoop:
             ; read next character
             mov al, byte ptr es:[si]
@@ -149,7 +193,7 @@ start:
             ret
     endp        
     
-    getAddress proc
+    putAddress proc
         push bx
         
         ; bl contains number of arguments
@@ -160,22 +204,59 @@ start:
         ret
     endp
     
-    getArg proc ; return address of argument with index of cl
+    getArg proc
+    ; entry: DL = argument index 
+    ; return: AL = argument offset
+     
         push bx
         xor bx, bx
         
-        mov bl, cl ; stores index of argument
-        ; return address in dl
-        mov dl, [argPtr + bx] 
+        mov bl, dl 
+        mov al, [argPtr + bx] 
         
         pop bx
         ret
-    endp
+    getArg endp
     
-    getArgNum proc ; return number of arguments in dl
+    getArgLen proc 
+    ; entry : DL = argument index
+    ; return: AL = arugment length
+    
+        push ax
+        push bx   
+        
+        ; clear address storage
+        xor bx, bx
+        ; dl stores argument index
+        call getArg
+        ; save first offset
+        mov al, 1
+        mov bl, dl
+        getChar:
+            ; go to next character 
+            inc bx
+            ; check for end of argument
+            cmp ds:[bx], 24h ; ASCII code for '$'
+            
+            ; return if encountered end of string
+            je endGetArgLen
+            ; else increment character counter and read next
+            inc al
+            jmp getChar
+        
+        endGetArgLen:
+        
+        pop bx
+        pop ax
+        ret
+    getArgLen endp
+    
+    getArgNum proc
+    ; return: AL = number of arguments
+    
         mov al, argNum
         ret
-    endp
+    getArgNum endp
     
     printArgs proc ; prints command line arguments
         push ax
@@ -226,38 +307,6 @@ start:
         ret
     endp
     
-    getArgLen proc ; returns length of argument with index in cl
-        push ax
-        push bx   
-        
-        ; clear address storage
-        xor bx, bx
-        ; cl stores argument index
-        call getArg
-        ; save first offset
-        mov al, 1
-        mov bl, dl
-        getChar:
-            ; go to next character 
-            inc bx
-            ; check for end of argument
-            cmp ds:[bx], 24h ; ASCII code for '$'
-            
-            ; return if encountered end of string
-            je endGetArgLen
-            ; else increment character counter and read next
-            inc al
-            jmp getChar
-        
-        ; return argument length in dl
-        endGetArgLen:
-            mov dl, al
-        
-        pop bx
-        pop ax
-        ret
-    endp
-    
     init proc
         ; save data segment
         mov ax, seg args
@@ -282,6 +331,7 @@ start:
     endp
 
 code ends
+
 
 st segment stack
         dw 200 dup(?)
