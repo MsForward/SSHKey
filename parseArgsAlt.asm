@@ -1,7 +1,14 @@
 data segment
-    args    db 255 dup(?)   ; stores command line arguments
-    argPtr  db 128 dup(0)   ; array of argument offsets
-    argNum  db 0            ; stores number of arguments
+; Commang line arguments
+    args            db 255 dup(?)   ; stores command line arguments
+    argPtr          db 128 dup(0)   ; array of argument offsets
+    argNum          db 0            ; stores number of arguments
+    runV            db 0            ; version of algorithm to run
+    keyPtr          db 0            ; offset of SSH key 
+    
+; Error messages    
+    tooManyArgsErr  db "Too many arguments! Usage: version key","$"
+    wrongArgLenErr  db "Wrong argument length! Usage: [0|1] 16-byte key","$"
 data ends
 
 assume ds:data, cs:code
@@ -11,8 +18,34 @@ code segment
 start:
     call init
     call parseArgs
-    call printArgs
+    call checkArgs
     call exit
+    
+    checkArgs proc
+        push ax
+        push cx
+        push dx
+        
+        cmp argNum, 2h
+        jg tooManyArgs
+        
+        mov cl, 0
+        call getArgLen
+        cmp dl, 1
+        jne wrongArgLen
+        
+        tooManyArgs:
+            mov ah, 9h
+            mov dx, offset tooManyArgsErr
+            int 21h
+            
+        wrongArgLen:
+        
+        pop dx
+        pop cx
+        pop ax
+        ret
+    endp
     
     parseArgs proc
         push ax
