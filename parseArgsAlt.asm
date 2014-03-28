@@ -9,9 +9,17 @@
 ;       return: AL = argument length
 ;   getArgNum
 ;       return: AL = number of arguments
+;   checkArgs
+;       return: AL = 1 if arguments valid else 0
+;   checkKey
+;       return: AL = 1 if key valid else 0
+;   checkVersion
+;       return: AL = 1 if version valid else 0
+;   printError
+;       entry: DX = error offset
 
 data segment
-; Commang line arguments
+; Input
     args            db 255 dup(?)   ; stores command line arguments
     argPtr          db 128 dup(0)   ; array of argument offsets
     argNum          db 0            ; stores number of arguments
@@ -20,7 +28,9 @@ data segment
     
 ; Error messages    
     argNumErr       db "Too many arguments! Usage: version key","$"
-    argLenErr       db "Wrong arguments! Usage: 0|1 16-byte key","$"
+    argLenErr       db "Wrong arguments! Usage: version(0|1) 16-byte key","$"
+    versionErr      db "Wrong version number! Usage version(0|1) key","$"
+    keyCharErr      db "Invalid character in key! Use digits 0-9 and letters A-F","$"
 data ends
 
 assume ds:data, cs:code
@@ -30,66 +40,148 @@ code segment
 start:
     call init
     call parseArgs
-    call checkArgs
+    call printArgs
     call exit
     
     checkArgs proc
-        push ax
         push bx
         push cx
         push dx
         
         xor bx, bx
         
-        cmp argNum, 2
+        ; check if there are 2 arguments
+        cmp argNum, 2h
         jne wrongArgNum
         
-        mov cl, 0
+        ; check if version number is 1 character long
+        xor dl, dl
         call getArgLen
-        cmp dl, 1
+        cmp al, 1h
+        jg wrongArgLen
+        ; check if key is 32 characters long
+        mov dl, 1h
+        call getArgLen
+        cmp al, 20h
         jne wrongArgLen
         
-        call getArg
-        mov bl, dl
-        mov al, ds:[bx]
-        sub al, 30h
-        cmp al, 0
-        je smth
-        cmp al, 1
-        jne wrongVersion
-        
-        smth:
-            mov runV, al
-        
-        mov cl, 1
-        call getArgLen
-        cmp dl, 20h
-        jne wrongArgLen
-        
+        call checkKey
+        cmp al, 1h
+        jne endCheckArgs
         
         wrongArgNum:
-            mov ah, 9h
             mov dx, offset argNumErr
-            int 21h
+            call printError
+            xor al, al
             jmp endCheckArgs
             
         wrongArgLen:
-            mov ah, 9h
             mov dx, offset argLenErr
-            int 21h
+            call printError
+            xor al, al
             jmp endCheckArgs
         
         wrongVersion:
-            mov ah, 9h
             mov dx, offset versionErr
-            int 21h
+            call printError
+            xor al, al
+            jmp endCheckArgs
         
+        ; return true    
+        mov al, 1h    
         endCheckArgs:
+        
         pop dx
         pop cx
+        pop bx
+        ret
+    checkArgs endp
+    
+    checkKey proc
+        push bx
+        push dx
+        
+        xor bx, bx
+        xor dx, dx
+        
+        ; get key offset
+        mov dl, 1h
+        call getArg
+        mov bl, al
+        mov dl, al
+        add dx, 20h
+        
+        checkChar:
+            mov al, ds:[bx]
+            cmp al, 30h
+            jl invalidChar
+            cmp al, 5Ah
+            jg invalidChar
+            ; check if digit
+            cmp al, 3Ah
+            jl ccLoop
+            ; check if letter 
+            cmp al, 40h
+            jg ccLoop
+        
+        invalidChar:
+            mov dx, offset keyCharErr
+            call printError
+            ; return false
+            xor al, al
+            jmp endCheckKey
+            
+        ccLoop:
+            inc bx
+            cmp bx, dx
+            jle checkChar
+        
+        ; return true 
+        mov al, 1h
+        endCheckKey:
+        
+        pop dx
+        pop bx
+        ret
+    checkKey endp
+    
+    printError proc
+        push ax
+        mov ah, 9h
+        int 21h
         pop ax
         ret
-    endp
+    printError endp
+    
+    checkVersion proc
+        push ax
+        push bx
+        push dx
+        
+        ; check if version number is 0 or 1
+        xor dl, dl
+        call getArg
+        mov bl, al
+        mov al, ds:[bx]
+        ; get numerical value from character
+        sub al, 30h
+        ; check if 0
+        cmp al, 1h
+        jle saveVersion 
+        
+        xor al, al
+        jmp endCheckVersion
+        
+        saveVersion:
+            mov runV, al
+            mov al, 1h
+        
+        endCheckVersion:    
+        pop dx
+        pop bx
+        pop ax
+        ret
+    checkVersion endp
     
     parseArgs proc
         push ax
@@ -140,7 +232,7 @@ start:
         pop bx
         pop ax    
         ret
-    endp
+    parseArgs endp
     
     removeWhitespace proc
         rwLoop:
@@ -157,7 +249,7 @@ start:
             
         endRemoveWhitespace:
             ret
-    endp
+    removeWhitespace endp
     
     readArg proc
         
@@ -202,7 +294,7 @@ start:
         
         pop bx
         ret
-    endp
+    readArg endp
     
     getArg proc
     ; entry: DL = argument index 
@@ -272,8 +364,10 @@ start:
             je endPrintLoop
             
             ; get argument address
+            mov dl, cl
             call getArg
             ; print argument to console
+            mov dl, al
             mov ah, 9h
             int 21h
             ; print line break
@@ -288,7 +382,7 @@ start:
         pop cx
         pop ax
         ret
-    endp
+    printArgs endp
     
     crlf proc ; prints line break 
         push ax
@@ -305,7 +399,7 @@ start:
         pop dx
         pop ax
         ret
-    endp
+    crlf endp
     
     init proc
         ; save data segment
@@ -323,12 +417,12 @@ start:
         xor cx, cx
         xor dx, dx
         ret
-    endp
+    init endp
     
     exit proc ; returns control to system
         mov ax, 4C00h
         int 21h
-    endp
+    exit endp
 
 code ends
 
