@@ -45,12 +45,13 @@ data segment
     endPos          db 0
     
 ; Error messages    
-    argNumErr       db "wrong arguments! Usage: version key","$"
+    argNumErr       db "Wrong arguments! Usage: version key","$"
     argLenErr       db "Wrong arguments! Usage: version(0|1) 16-byte key","$"
     versionErr      db "Wrong version number! Usage version(0|1) key","$"
     keyCharErr      db "Invalid character in key! Use digits 0-9 and letters A-F","$"
 data ends
 
+.286
 assume ds:data, cs:code
 
 code segment        
@@ -59,9 +60,22 @@ start:
     call init
     call parseArgs
     call checkArgs
+    cmp al, 1h
+    jne quit
     call convertKey
-    call drunkenBishop
-    call fingerprint
+    cmp runV, 0h 
+    je runBishop
+
+    runTower:
+        call drunkenTower
+        jmp printResult
+
+    runBishop:
+        call drunkenBishop
+
+    printResult: 
+        call fingerprint
+quit:    
     call exit
     
     drunkenBishop proc
@@ -91,112 +105,211 @@ start:
         pop ax 
         ret
     drunkenBishop endp
+
+    drunkenTower proc
+        push ax
+        push cx
+        push dx
+        
+        mov si, offset key
+        ; set bishop at starting position
+        mov dh, 8d
+        mov dl, 4d
+        mov cl, keyBytes
+
+        towerLoop:
+            mov al, byte ptr ds:[si]
+            call moveTower
+            inc si
+            dec cx
+            cmp cx, 0
+            jg towerLoop
+            
+        call getPosition
+        mov endPos, bl    
+        
+        pop dx
+        pop cx
+        pop ax 
+        ret
+    drunkenTower endp
     
     move proc
     ; entry: DH = x position, DL = y position, AL = byte to analize
-        push cx
-        mov cl, al
         push ax
-        mov al, cl
-
-        ; analize 8 bits
-        mov cx, 8h
-        moveLoop:
-            mov ah, 'H'
-            call moveOne
-            shr al, 1
-            mov ah, 'V'
-            call moveOne   
-            shr al, 1
-            sub cx, 2h
-            cmp cx, 0h
-            jg moveLoop
-        
-        pop ax
-        pop cx
-        ret
-    move endp
-
-    moveOne proc
-    ; entry: DH = x position, DL = y position, AL = byte to analize, AH = direction V - vertical, H - horizontal
-    ; return: DH = new x position, DL = new y position
         push bx
         push cx
 
-        mov bx, ax
-        mov cx, dx
-        push ax
-        push dx
-        mov dl, bl
-        call getLastBit
-
-        pop dx
-        cmp bh, 'H'
-        je horizontal
-
-        vertical: 
-            call moveV
-            jmp checkMove
-        horizontal: 
+        ; analize 8 bits
+        mov cx, 8h
+        moveOne:
+            mov bx, dx
             call moveH
+            shr al, 1
+            call moveV   
+            shr al, 1
+            cmp bx, dx
+            je mvLoop
+
+            call getPosition
+            inc [array + bx]
+
+            mvLoop:
+                sub cx, 2h
+                cmp cx, 0h
+                jg moveOne
         
-        checkMove:
-        call movePossible
-        cmp al, 1h
-        jne cancelMove
-        
-        continueMove:
-        call getPosition
-        inc [array + bx]
-        jmp endMove
-        
-        cancelMove:
-        mov dx, cx
-        
-        endMove:
-        pop ax
         pop cx
         pop bx
+        pop ax
         ret
-    moveOne endp
+    move endp
 
     moveH proc
-    ; entry: DH = x position, DL = y position, AL = direction
+    ; entry: DH = x position, DL = y position, AL = current byte
     ; return: DH = new x position. DL = new y position
+        push ax
+        push bx
+        push dx
         
+        mov dl, al
+        call getLastBit
+        pop dx
+        
+        mov bx, dx
+        ; 1 - move right, 0 - move left
         cmp al, 1h
         je moveRight
 
         moveLeft: 
             dec dh
-            jmp endMoveH
+            jmp checkMoveH
         moveRight: inc dh
+        
+        ; check if indices are not out of bounds
+        checkMoveH:
+            call movePossible
+            cmp al, 1h
+            je endMoveH
+            ; if move not possible return to previous position
+            mov dx, bx
+
         endMoveH:
+        pop bx
+        pop ax
         ret
     moveH endp
     
     moveV proc
-    ; entry: DH = x position, DL = y position, AL = direction
+    ; entry: DH = x position, DL = y position, AL = current byte
     ; return: DH = new x position. DL = new y position
+        push ax
+        push bx
+        push dx
         
+        mov dl, al
+        call getLastBit
+        pop dx
+        
+        mov bx, dx
+
         cmp al, 1h
         je moveDown
-
+        ; 1 - move down, 0 - move up
         moveUp: 
-            inc dl
-            jmp endMoveV
-        moveDown: dec dl
+            dec dl
+            jmp checkMoveV
+        moveDown: inc dl
+        checkMoveV:
+            call movePossible
+            cmp al, 1h
+            je endMoveV
+            ; if move not possible return to previous position
+            mov dx, bx
+
         endMoveV:
+        pop bx
+        pop ax
         ret
     moveV endp
+
+    moveTower proc
+    ; entry: DH = x position, DL = y position, AL = byte to analize
+        push ax
+        push bx
+        push cx
+
+        ; analize 8 bits
+        mov cx, 8h
+        moveTowerLoop:
+            mov bx, dx
+            mov dl, al
+            call getDir
+            cmp al, 'H'
+            je horizontal
+
+            vertical:
+                mov al, dl
+                shr al, 1
+                mov dx, bx
+                call moveV
+                jmp checkMove
+                
+            horizontal:
+                mov al, dl
+                shr al, 1
+                mov dx, bx
+                call moveH          
+
+            checkMove:
+            cmp dx, bx
+            je mvtLoop
+
+            call getPosition
+            inc [array + bx]
+
+            mvtLoop:
+                sub cx, 2h
+                cmp cx, 0h
+                jg moveTowerLoop
+        
+        pop cx
+        pop bx
+        pop ax
+        ret
+
+    moveTower endp
 
     getLastBit proc
     ; entry: DL = byte to analize
     ; return: AL = 1 or 0
         mov al, dl
-        and al, 00000001
+        and al, 00000001b
         ret
     getLastBit endp
+
+    getDir proc
+    ; entry: DL = byte to analize
+    ; return: AL = 'V' - vertical, 'H' - horizontal
+        push dx
+
+        call getLastBit
+        mov dh, al
+        shr dl, 1
+        call getLastBit
+        xor al, dh
+        cmp al, 1h
+        je dirH
+
+        dirV: mov al, 'V' 
+            jmp endGetDir
+        dirH: mov al, 'H'
+
+        endGetDir:
+
+        pop dx
+        ret    
+    getDir endp
     
     getPosition proc
     ; entry: DH = x position, DL = y position
@@ -308,6 +421,7 @@ start:
         jne endCheckArgs
         call checkVersion
         cmp al, 1h
+        jne wrongVersion
         jmp endCheckArgs
         
         wrongArgNum:
@@ -327,9 +441,7 @@ start:
             call println
             xor al, al
             jmp endCheckArgs
-        
-        ; return true    
-        mov al, 1h    
+         
         endCheckArgs:
         
         pop dx
@@ -384,12 +496,12 @@ start:
         endCheckKey:
         
         pop dx
+        pop cx
         pop bx
         ret
     checkKey endp
     
     checkVersion proc
-        push ax
         push bx
         push dx
         
@@ -414,7 +526,6 @@ start:
         endCheckVersion:    
         pop dx
         pop bx
-        pop ax
         ret
     checkVersion endp
     
@@ -512,7 +623,7 @@ start:
             
         endReadArg:
             ; end string with $
-            mov ds:[di], '$'
+            mov byte ptr ds:[di], '$'
             inc di
             ; increment argument counter
             inc bl
@@ -561,7 +672,7 @@ start:
             ; go to next character 
             inc bx
             ; check for end of argument
-            cmp ds:[bx], 24h ; ASCII code for '$'
+            cmp byte ptr ds:[bx], '$'
             
             ; return if encountered end of string
             je endGetArgLen
@@ -750,9 +861,9 @@ start:
 code ends
 
 
-st segment stack
+stack1 segment stack
         dw 200 dup(?)
     top dw ?
-st ends
+stack1 ends
 
 end start
