@@ -1,5 +1,38 @@
 ; Methods:
-;   drunkenBishop                                   Creates movement map for given key
+;   drunkenBishop                                   Creates bishop movement map for given key
+;   drunkenTower                                    Creates tower movement map for given key
+;   move
+;       entry: DH = x position,                     Performs 4 moves for one key byte
+;           DL = y position, 
+;           AL = byte to analize
+;   moveH                                           Performs one horizontal move
+;       entry: DH = x position, 
+;           DL = y position, 
+;           AL = current byte
+;       return: DH = new x position, 
+;           DL = new y position
+;   moveV                                           Performs one vertical move
+;       entry: DH = x position, 
+;           DL = y position, 
+;           AL = current byte
+;       return: DH = new x position, 
+;           DL = new y position
+;   moveTower 
+;       entry: DH = x position, 
+;           DL = y position, 
+;           AL = byte to analize
+;   getLastBit                                      Returns last bit of given byte
+;       entry: DL = byte to convert
+;       return: AL = last bit
+;   getDir                                          Returns direction for tower move (V - vertical, H - horizontal)
+;       entry: DL = byte to convert
+;       return: AL = 'V' or 'H'
+;   getPosition                                     Returns array index for given x and y coordinates
+;       entry: DH = x, DL = y
+;       return: BX = index
+;   movePossible                                    Checks if move is valid
+;       entry: DH = x to check, DL = y to check
+;       return: AL = 1 if move valid else 0
 ;   parseArgs                                       Saves command line arguments as array of string
 ;   putAddress                                      Saves arguments offset in pointer array                                       
 ;   printArgs                                       Prints all command line arguments
@@ -20,6 +53,8 @@
 ;       return: AL = 1 if version valid else 0
 ;   println
 ;       entry: DX = string offset                   Prints string to console
+;   printchar
+;       entry: DL = character ASCII                 Prints one character to console
 ;   crlf                                            Prints new line in console
 
 data segment
@@ -63,6 +98,7 @@ start:
     cmp al, 1h
     jne quit
     call convertKey
+    ; check version number
     cmp runV, 0h 
     je runBishop
 
@@ -87,17 +123,23 @@ quit:
         ; set bishop at starting position
         mov dh, 8d
         mov dl, 4d
+        ; number of move loops
         mov cl, keyBytes
 
         bishopLoop:
+            ; read key byte
             mov al, byte ptr ds:[si]
+            ; analize byte
             call move
+            ; go to next byte
             inc si
             dec cx
             cmp cx, 0
             jg bishopLoop
-            
+        
+        ; calculate array index from x and y coordinates    
         call getPosition
+        ; save final bishop position
         mov endPos, bl    
         
         pop dx
@@ -115,16 +157,21 @@ quit:
         ; set bishop at starting position
         mov dh, 8d
         mov dl, 4d
+        ; number of move loops
         mov cl, keyBytes
 
         towerLoop:
+            ; get next byte
             mov al, byte ptr ds:[si]
+            ; analyze byte
             call moveTower
+            ; go to next byte
             inc si
             dec cx
             cmp cx, 0
             jg towerLoop
-            
+        
+        ; get final tower position    
         call getPosition
         mov endPos, bl    
         
@@ -143,15 +190,23 @@ quit:
         ; analize 8 bits
         mov cx, 8h
         moveOne:
+            ; remember entry position
             mov bx, dx
+            ; move horizontally
             call moveH
+            ; get next bit
             shr al, 1
+            ; move vertically
             call moveV   
+            ; get next bit
             shr al, 1
+            ; if new position is same as entry position, continue
             cmp bx, dx
             je mvLoop
-
+            
+            ; get array index from x and y position
             call getPosition
+            ; increment visit count for current field
             inc [array + bx]
 
             mvLoop:
@@ -242,22 +297,22 @@ quit:
         ; analize 8 bits
         mov cx, 8h
         moveTowerLoop:
+            ; remember current position
             mov bx, dx
             mov dl, al
+            ; analize 2 bits
             call getDir
             cmp al, 'H'
             je horizontal
 
             vertical:
                 mov al, dl
-                shr al, 1
                 mov dx, bx
                 call moveV
                 jmp checkMove
                 
             horizontal:
                 mov al, dl
-                shr al, 1
                 mov dx, bx
                 call moveH          
 
@@ -269,6 +324,7 @@ quit:
             inc [array + bx]
 
             mvtLoop:
+                shr al, 2h
                 sub cx, 2h
                 cmp cx, 0h
                 jg moveTowerLoop
